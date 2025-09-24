@@ -1,4 +1,3 @@
-import os
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import google.generativeai as genai
@@ -6,9 +5,9 @@ import google.generativeai as genai
 app = Flask(__name__)
 CORS(app)
 
-# Gemini API
-genai.configure(api_key=os.environ.get("AIzaSyAmFL6zI8lfXkf86eNTBDW2NhjgfO3Qyy8"))
-model = genai.GenerativeModel("gemini-1.5")
+# 🔑 Gemini API Key
+genai.configure(api_key="AIzaSyAmFL6zI8lfXkf86eNTBDW2NhjgfO3Qyy8")
+model = genai.GenerativeModel("gemini-2.0-flash")
 
 @app.route("/")
 def home():
@@ -18,10 +17,13 @@ def home():
 def chat():
     data = request.get_json()
     user_msg = data.get("message", "")
-    response = model.generate_content(prompt=f"Answer in Malayalam, farmer-friendly: {user_msg}")
-    reply_text = response.candidates[0].content[0].text if response.candidates else "Sorry!"
-    return jsonify({"reply": reply_text})
+
+    # Generate AI answer (local language friendly)
+    ai_response = model.generate_content(
+        f"Answer in Malayalam in simple farmer-friendly words. Question: {user_msg}"
+    )
+
+    return jsonify({"reply": ai_response.text})
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Use Render's port
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True)
