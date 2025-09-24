@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>🌾 Farmer AI Bot</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Firebase SDK v10 (modular) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    document.addEventListener("DOMContentLoaded", () => {
+
+      // 🔑 Firebase config (replace with your values)
+          // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyD5SlD1N5v2euy_qiTWDbhuZZuKm_ZAjUc",
+      authDomain: "framer-bot-ae8ae.firebaseapp.com",
+      projectId: "framer-bot-ae8ae",
+      storageBucket: "framer-bot-ae8ae.appspot.com", // ✅ fixed
+      messagingSenderId: "910132031908",
+      appId: "1:910132031908:web:44c7a7f81c0ac2aa101131",
+      measurementId: "G-1J365HD6Z2"
+    };
+
+
+      // Init Firebase
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+      let currentUser = null;
+
+      const userInfo = document.getElementById("userInfo");
+      const chatbox = document.getElementById("chatbox");
+      const statusText = document.getElementById("status");
+
+      function updateUserInfo(email) {
+        if (!userInfo) return;
+        userInfo.innerHTML = `<span class="font-semibold">${email}</span>`;
+      }
+
+      window.toggleAuth = () => {
+        const authModal = document.getElementById("authModal");
+        authModal.classList.toggle("hidden");
+      };
+
+      // Signup
+      window.signup = async () => {
+        const email = document.getElementById("email").value;
+        const password = document.getElementById("password").value;
+        try {
+          const userCred = await createUserWithEmailAndPassword(auth, email, password);
+          await setDoc(doc(db, "users", userCred.user.uid), { email });
+          statusText.innerText = "✅ Signup successful!";
+        } catch (e) {
+          statusText.innerText = e.message;
+        }
+      };
+
+      // Login
+      window.login = async () => {
+        const email = document.getElementById("email").value;
+        const password = document.getElementById("password").value;
+        try {
+          const userCred = await signInWithEmailAndPassword(auth, email, password);
+          currentUser = userCred.user;
+          updateUserInfo(currentUser.email);
+          toggleAuth();
+        } catch (e) {
+          statusText.innerText = e.message;
+        }
+      };
+
+      // Google login
+      window.googleLogin = async () => {
+        const provider = new GoogleAuthProvider();
+        try {
+          const result = await signInWithPopup(auth, provider);
+          currentUser = result.user;
+          await setDoc(doc(db, "users", currentUser.uid), { email: currentUser.email }, { merge: true });
+          updateUserInfo(currentUser.email);
+          toggleAuth();
+        } catch (e) {
+          statusText.innerText = e.message;
+        }
+      };
+
+      // Keep user logged in after refresh
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          currentUser = user;
+          updateUserInfo(user.email);
+        } else {
+          currentUser = null;
+          if (userInfo)
+            userInfo.innerHTML = `<button onclick="toggleAuth()" class="bg-white text-green-700 px-4 py-2 rounded-lg shadow hover:bg-green-200">Login / Signup</button>`;
+        }
+      });
+
+      // Send message to AI backend
+      window.sendMessage = async () => {
+        if (!currentUser) {
+          alert("Please login first!");
+          return;
+        }
+
+        const msgInput = document.getElementById("message");
+        const msg = msgInput.value.trim();
+        if (!msg) return;
+
+        chatbox.innerHTML += `<div class="text-right"><span class="inline-block bg-green-600 text-white px-3 py-2 rounded-lg">${msg}</span></div>`;
+        msgInput.value = "";
+
+        try {
+          const res = await fetch("/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: msg })
+          });
+          const data = await res.json();
+          chatbox.innerHTML += `<div class="text-left"><span class="inline-block bg-gray-200 px-3 py-2 rounded-lg">${data.reply}</span></div>`;
+          chatbox.scrollTop = chatbox.scrollHeight;
+        } catch (e) {
+          chatbox.innerHTML += `<div class="text-left text-red-500">Error connecting to server.</div>`;
+        }
+      };
+    });
+  </script>
+</head>
+<body class="bg-gradient-to-r from-green-100 to-green-200 h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-green-700 text-white p-4 shadow-md flex justify-between items-center">
+    <h1 class="text-xl font-bold">🌾 Farmer AI Bot</h1>
+    <div id="userInfo">
+      <button onclick="toggleAuth()" class="bg-white text-green-700 px-4 py-2 rounded-lg shadow hover:bg-green-200">Login / Signup</button>
+    </div>
+  </header>
+
+  <!-- Chat Section -->
+  <main class="flex-1 flex justify-center items-center">
+    <div class="w-full max-w-2xl bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden h-[75vh]">
+
+      <!-- Chatbox -->
+      <div id="chatbox" class="flex-1 p-4 overflow-y-auto space-y-3 bg-gray-50">
+        <div class="text-center text-gray-400">👋 Welcome! Login first, then ask your farming question.</div>
+      </div>
+
+      <!-- Input -->
+      <div class="p-4 border-t flex items-center bg-white">
+        <input id="message" type="text" placeholder="Type your question..."
+          class="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500">
+        <button onclick="sendMessage()" class="ml-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">Send</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Auth Modal -->
+  <div id="authModal" class="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center hidden">
+    <div class="bg-white p-6 rounded-2xl shadow-lg w-96">
+      <h2 class="text-xl font-bold mb-4">🔑 Login / Signup</h2>
+      <input id="email" type="text" placeholder="Email" class="w-full mb-2 p-3 border rounded-lg">
+      <input id="password" type="password" placeholder="Password" class="w-full mb-4 p-3 border rounded-lg">
+
+      <div class="flex justify-between">
+        <button onclick="signup()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">Signup</button>
+        <button onclick="login()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Login</button>
+      </div>
+
+      <div class="mt-4 text-center">
+        <button onclick="googleLogin()" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 w-full">Login with Google</button>
+      </div>
+
+      <p id="status" class="mt-3 text-center text-sm text-gray-600"></p>
+      <button onclick="toggleAuth()" class="mt-3 w-full text-gray-500 hover:underline">Close</button>
+    </div>
+  </div>
+</body>
+</html>
